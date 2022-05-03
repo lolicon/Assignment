@@ -26,6 +26,10 @@ import pascal.taie.analysis.dataflow.analysis.DataflowAnalysis;
 import pascal.taie.analysis.dataflow.fact.DataflowResult;
 import pascal.taie.analysis.graph.cfg.CFG;
 
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
 class IterativeSolver<Node, Fact> extends Solver<Node, Fact> {
 
     public IterativeSolver(DataflowAnalysis<Node, Fact> analysis) {
@@ -39,6 +43,20 @@ class IterativeSolver<Node, Fact> extends Solver<Node, Fact> {
 
     @Override
     protected void doSolveBackward(CFG<Node> cfg, DataflowResult<Node, Fact> result) {
-        // TODO - finish me
+        initializeBackward(cfg, result);
+        var changed = true;
+        while (changed) {
+            final List<Boolean> mark = StreamSupport.stream(cfg.spliterator(), false).map(node -> {
+                // reduce all previous nodes into
+                var folded = cfg.getSuccsOf(node).stream().map(result::getInFact).reduce(analysis.newInitialFact(),
+                        (prev, element) -> {
+                            analysis.meetInto(element, prev);
+                            return prev;
+                        });
+                result.setOutFact(node, folded);
+                return analysis.transferNode(node, result.getInFact(node), folded);
+            }).toList();
+            changed = mark.stream().anyMatch(it -> it);
+        }
     }
 }

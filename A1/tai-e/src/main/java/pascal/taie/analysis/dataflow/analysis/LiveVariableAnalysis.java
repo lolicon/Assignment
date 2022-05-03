@@ -25,14 +25,22 @@ package pascal.taie.analysis.dataflow.analysis;
 import pascal.taie.analysis.dataflow.fact.SetFact;
 import pascal.taie.analysis.graph.cfg.CFG;
 import pascal.taie.config.AnalysisConfig;
+import pascal.taie.ir.exp.ExpVisitor;
+import pascal.taie.ir.exp.LValue;
+import pascal.taie.ir.exp.RValue;
 import pascal.taie.ir.exp.Var;
 import pascal.taie.ir.stmt.Stmt;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of classic live variable analysis.
  */
-public class LiveVariableAnalysis extends
-        AbstractDataflowAnalysis<Stmt, SetFact<Var>> {
+public class LiveVariableAnalysis extends AbstractDataflowAnalysis<Stmt, SetFact<Var>> {
 
     public static final String ID = "livevar";
 
@@ -47,24 +55,43 @@ public class LiveVariableAnalysis extends
 
     @Override
     public SetFact<Var> newBoundaryFact(CFG<Stmt> cfg) {
-        // TODO - finish me
-        return null;
+        return new SetFact<>();
     }
 
     @Override
     public SetFact<Var> newInitialFact() {
-        // TODO - finish me
-        return null;
+        return new SetFact<>();
     }
 
     @Override
     public void meetInto(SetFact<Var> fact, SetFact<Var> target) {
-        // TODO - finish me
+        if (fact != null) {
+            target.union(fact);
+        }
     }
 
     @Override
     public boolean transferNode(Stmt stmt, SetFact<Var> in, SetFact<Var> out) {
-        // TODO - finish me
-        return false;
+        // apply stmt from out to in, return if changed
+        final Optional<Var> def = stmt.getDef().flatMap(it -> Optional.ofNullable(it.accept(new ExpVisitor<>() {
+            @Override
+            public Var visit(Var var) {
+                return var;
+            }
+        })));
+
+        final Set<Var> uses = stmt.getUses().stream().map(it -> it.accept(new ExpVisitor<Var>() {
+            @Override
+            public Var visit(Var var) {
+                return var;
+            }
+        })).filter(Objects::nonNull).collect(Collectors.toSet());
+
+        var transformed = out.copy();
+        def.ifPresent(transformed::remove);
+        transformed.union(new SetFact<>(uses));
+        var equals = transformed.equals(in);
+        in.set(transformed);
+        return !equals;
     }
 }
